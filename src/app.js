@@ -16,7 +16,11 @@ if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-const allowedOrigins = ["http://localhost:3000", "http://localhost:5173","https://publicity-poster-backend.vercel.app"];
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://poster-self.vercel.app",
+];
 // Middleware
 app.use(
   cors({
