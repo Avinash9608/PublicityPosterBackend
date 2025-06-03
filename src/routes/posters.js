@@ -61,4 +61,18 @@ router.get("/my-posters", protect, async (req, res) => {
   }
 });
 
+// Public route to get all posters (for admin)
+router.get("/", async (req, res) => {
+  try {
+    const posters = await Poster.find()
+      .populate("template", "title")
+      .sort({ createdAt: -1 });
+
+    res.json(posters);
+  } catch (err) {
+    console.error("Error fetching all posters:", err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
 module.exports = router;
