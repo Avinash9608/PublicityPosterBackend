@@ -75,4 +75,25 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Add to your posters routes
+router.delete("/:id", protect, async (req, res) => {
+  try {
+    const poster = await Poster.findById(req.params.id);
+
+    if (!poster) {
+      return res.status(404).json({ message: "Poster not found" });
+    }
+
+    // Check if the user owns the poster
+    if (poster.user.toString() !== req.user.id) {
+      return res.status(401).json({ message: "Not authorized" });
+    }
+
+    await poster.remove();
+    res.json({ message: "Poster removed" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
 module.exports = router;
