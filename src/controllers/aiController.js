@@ -80,20 +80,37 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Gemini with error handling
+let genAI;
+try {
+  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+} catch (error) {
+  console.error("Failed to initialize Gemini:", error);
+  process.exit(1);
+}
 
 exports.generateTemplateFromPrompt = async (req, res) => {
+  // Validate environment variables first
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: "Server configuration error - Missing Gemini API key",
+    });
+  }
+
   try {
     const { description } = req.body;
 
     if (!description) {
-      return res.status(400).json({ error: "Description is required" });
+      return res.status(400).json({
+        success: false,
+        error: "Description is required",
+      });
     }
 
-    // Initialize Gemini model
+    // Initialize model with error handling
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.0-pro",
+      model: "gemini-pro",
       generationConfig: {
         temperature: 0.9,
         topP: 1,
@@ -102,44 +119,54 @@ exports.generateTemplateFromPrompt = async (req, res) => {
       },
     });
 
-    // Prompt Gemini
-    const prompt = `Generate a creative poster title and category based on: "${description}". 
+    // Generate title and category with enhanced prompt
+    const prompt = `Generate a creative poster title and category based on: "${description}".
     Respond in this exact format:
     Title: [Generated Title Here]
     Category: [Generated Category Here]
-    Make the title catchy and the category relevant to poster design.`;
+    
+    Requirements:
+    - Title should be 2-5 words
+    - Category should be 1-2 words
+    - Both should be relevant to poster design`;
 
-    console.log("🧠 Sending prompt to Gemini...");
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    console.log("✅ Gemini response:", text);
 
-    // Parse title and category
-    const title = text.match(/Title:\s*(.*)/)?.[1]?.trim() || "Custom Poster";
-    const category = text.match(/Category:\s*(.*)/)?.[1]?.trim() || "General";
+    // Enhanced response parsing
+    const titleMatch = text.match(/Title:\s*(.+)/i);
+    const categoryMatch = text.match(/Category:\s*(.+)/i);
 
-    // Build image URL
-    const placeholderImageUrl = `https://res.cloudinary.com/demo/image/upload/c_fit,w_600,h_400/e_text:montserrat_30_bold:${encodeURIComponent(title)},g_center/l_text:montserrat_16:${encodeURIComponent(category)},g_south,y_30/sample.jpg`;
+    const title = titleMatch?.[1]?.trim() || "Custom Poster";
+    const category = categoryMatch?.[1]?.trim() || "General";
 
-    console.log("📷 Uploading image to Cloudinary...");
-    const uploaded = await cloudinary.uploader.upload(placeholderImageUrl, {
-      folder: "poster-templates",
-    });
+    // Generate placeholder image with error handling
+    let imageUrl;
+    try {
+      const placeholderImage = await cloudinary.uploader.upload(
+        `https://placehold.co/600x400/EEE/31343C.png?text=${encodeURIComponent(title)}&font=montserrat`,
+        { folder: "poster-templates" }
+      );
+      imageUrl = placeholderImage.secure_url;
+    } catch (uploadError) {
+      console.error("Cloudinary upload failed:", uploadError);
+      imageUrl = `https://placehold.co/600x400/EEE/31343C.png?text=${encodeURIComponent(title)}`;
+    }
 
     res.json({
       success: true,
       title,
       category,
-      imageUrl: uploaded.secure_url,
+      imageUrl,
     });
   } catch (error) {
-    console.error("❌ AI Generation Error:", error.message);
+    console.error("AI Generation Error:", error);
     res.status(500).json({
       success: false,
       error: "AI generation failed",
-      details: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
