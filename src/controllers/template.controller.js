@@ -1,23 +1,62 @@
 const Template = require("../models/Template");
 const cloudinary = require("../utils/cloudinary"); // Remove .v2 here
 
+// exports.createTemplate = async (req, res) => {
+//   try {
+//     console.log("Cloudinary uploader exists:", !!cloudinary.uploader); // Debug line
+
+//     const { title, category, imageBase64 } = req.body;
+
+//     if (!title || !category || !imageBase64) {
+//       return res.status(400).json({ error: "All fields are required" });
+//     }
+
+//     // Debug the incoming image
+//     console.log("Image base64 starts with:", imageBase64.substring(0, 50));
+
+//     const uploadedResponse = await cloudinary.uploader.upload(imageBase64, {
+//       folder: "templates",
+//       resource_type: "auto",
+//     });
+
+//     const newTemplate = await Template.create({
+//       title,
+//       category,
+//       imageUrl: uploadedResponse.secure_url,
+//       cloudinaryId: uploadedResponse.public_id,
+//     });
+
+//     res.status(201).json(newTemplate);
+//   } catch (err) {
+//     console.error("Full error creating template:", err);
+//     res.status(500).json({
+//       error: err.message || "Internal server error",
+//       stack: err.stack, // Only for development!
+//     });
+//   }
+// };
 exports.createTemplate = async (req, res) => {
   try {
-    console.log("Cloudinary uploader exists:", !!cloudinary.uploader); // Debug line
+    const { title, category, imageUrl } = req.body;
 
-    const { title, category, imageBase64 } = req.body;
-
-    if (!title || !category || !imageBase64) {
+    if (!title || !category || !imageUrl) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
-    // Debug the incoming image
-    console.log("Image base64 starts with:", imageBase64.substring(0, 50));
-
-    const uploadedResponse = await cloudinary.uploader.upload(imageBase64, {
-      folder: "templates",
-      resource_type: "auto",
-    });
+    // Check if image is base64 (manual upload) or URL (AI generated)
+    let uploadedResponse;
+    if (imageUrl.startsWith("data:image")) {
+      // Handle base64 upload
+      uploadedResponse = await cloudinary.uploader.upload(imageUrl, {
+        folder: "templates",
+        resource_type: "auto",
+      });
+    } else {
+      // Handle direct URL (from AI generation)
+      uploadedResponse = await cloudinary.uploader.upload(imageUrl, {
+        folder: "templates",
+      });
+    }
 
     const newTemplate = await Template.create({
       title,
@@ -28,14 +67,12 @@ exports.createTemplate = async (req, res) => {
 
     res.status(201).json(newTemplate);
   } catch (err) {
-    console.error("Full error creating template:", err);
+    console.error("Error creating template:", err);
     res.status(500).json({
       error: err.message || "Internal server error",
-      stack: err.stack, // Only for development!
     });
   }
 };
-
 exports.getAllTemplates = async (req, res) => {
   try {
     const templates = await Template.find().sort({ createdAt: -1 });
