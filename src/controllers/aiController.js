@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { OpenAI } = require("openai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const cloudinary = require("cloudinary").v2;
 
 // Configure Cloudinary
@@ -9,7 +9,8 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 exports.generateTemplateFromPrompt = async (req, res) => {
   try {
@@ -19,55 +20,35 @@ exports.generateTemplateFromPrompt = async (req, res) => {
       return res.status(400).json({ error: "Description is required" });
     }
 
+    // Initialize model
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
     // Generate title and category
-    const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a creative assistant that generates poster templates. Respond with only the title on the first line and category on the second line. Keep them concise.",
-        },
-        {
-          role: "user",
-          content: `Generate a poster template based on: ${description}`,
-        },
-      ],
-      max_tokens: 100,
-    });
+    const prompt = `Generate a creative poster title and category based on: "${description}".
+    Respond in this exact format:
+    Title: [Generated Title Here]
+    Category: [Generated Category Here]`;
 
-    const responseText = chatCompletion.choices[0].message.content;
-    const [title, category] = responseText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line);
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-    if (!title || !category) {
-      throw new Error("Failed to generate title and category");
-    }
+    // Parse response
+    const title = text.match(/Title: (.*)/)?.[1]?.trim() || "Custom Poster";
+    const category = text.match(/Category: (.*)/)?.[1]?.trim() || "General";
 
-    // Generate image using DALL·E
-    const imageResponse = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: `A professional poster design about: ${description}. Minimalist, high quality, suitable for business or event.`,
-      size: "1024x1024",
-      quality: "standard",
-      n: 1,
-    });
-
-    const imageUrl = imageResponse.data[0].url;
-
-    // Upload to Cloudinary
-    const uploadedImage = await cloudinary.uploader.upload(imageUrl, {
-      folder: "poster-templates",
-      resource_type: "image",
-    });
+    // For image generation - using placeholder since Gemini doesn't generate images
+    // In production, integrate Stable Diffusion or DALL-E here
+    const placeholderImage = await cloudinary.uploader.upload(
+      "https://placehold.co/600x400/EEE/31343C?font=montserrat&text=Poster+Image",
+      { folder: "poster-templates" }
+    );
 
     res.json({
       success: true,
       title,
       category,
-      imageUrl: uploadedImage.secure_url,
+      imageUrl: placeholderImage.secure_url,
     });
   } catch (error) {
     console.error("AI Generation Error:", error);
