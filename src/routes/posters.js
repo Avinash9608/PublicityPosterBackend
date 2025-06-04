@@ -143,18 +143,18 @@ router.post("/", protect, async (req, res) => {
 });
 
 // GET /api/posters/my-posters - Protected (get posters of logged-in user)
-// router.get("/my-posters", async (req, res) => {
-//   try {
-//     const posters = await Poster.find({ user: req.user.id })
-//       .populate("template", "title imageUrl")
-//       .sort({ createdAt: -1 });
+router.get("/my-posters", protect, async (req, res) => {
+  try {
+    const posters = await Poster.find({ user: req.user.id })
+      .populate("template", "title imageUrl")
+      .sort({ createdAt: -1 });
 
-//     res.json(posters);
-//   } catch (err) {
-//     console.error(err.message);
-//     res.status(500).send("Server Error");
-//   }
-// });
+    res.json(posters);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
 
 // GET /api/posters - Public (Admin fetch all posters)
 router.get("/", async (req, res) => {
