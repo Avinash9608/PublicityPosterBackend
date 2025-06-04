@@ -9,6 +9,7 @@ const path = require("path");
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const adminRoutes = require("./routes/admin.routes");
+const aiRoutes = require("./routes/aiRoutes");
 const app = express();
 // ✅ Ensure uploads/kyc directory exists
 const dir = path.join(__dirname, "uploads/kyc");
@@ -53,6 +54,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/posters", require("./routes/posters"));
+app.use("/api/ai", aiRoutes);
 // Error handler middleware
 app.use(errorHandler);
 
