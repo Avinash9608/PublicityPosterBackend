@@ -1,7 +1,8 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const cloudinary = require("cloudinary").v2;
+const axios = require("axios");
 
-// Configure Cloudinary safely
+// Configure Cloudinary
 if (
   process.env.CLOUDINARY_CLOUD_NAME &&
   process.env.CLOUDINARY_API_KEY &&
@@ -14,38 +15,53 @@ if (
   });
 }
 
-// Initialize Gemini with proper error handling
-let genAI;
-try {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("Missing Gemini API key");
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Function to generate AI image using alternative service since Gemini doesn't support image generation
+async function generateAIImage(prompt) {
+  try {
+    // Using Stable Diffusion API as fallback
+    const response = await axios.post(
+      "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+      {
+        text_prompts: [{ text: prompt }],
+        cfg_scale: 7,
+        height: 1024,
+        width: 1024,
+        samples: 1,
+        steps: 30,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${process.env.STABILITY_API_KEY}`,
+        },
+      }
+    );
+
+    return response.data.artifacts[0].base64;
+  } catch (error) {
+    console.error("AI Image Generation Error:", error);
+    throw new Error("Failed to generate AI image");
   }
-  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-} catch (error) {
-  console.error("❌ Gemini initialization failed:", error.message);
 }
 
 exports.generateTemplateFromPrompt = async (req, res) => {
-  // Immediate validation
-  if (!genAI) {
-    return res.status(500).json({
-      success: false,
-      error: "AI service not configured",
-      details: "Gemini API is not properly initialized",
-    });
-  }
-
-  if (!req.body?.description) {
-    return res.status(400).json({
-      success: false,
-      error: "Description is required",
-    });
-  }
-
   try {
-    // Get the model with proper configuration
+    const { description } = req.body;
+
+    if (!description) {
+      return res.status(400).json({
+        success: false,
+        error: "Description is required",
+      });
+    }
+
+    // Initialize model
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-pro-latest", // Updated to latest model
+      model: "gemini-1.5-pro-latest",
       generationConfig: {
         temperature: 0.7,
         topP: 0.9,
@@ -54,44 +70,46 @@ exports.generateTemplateFromPrompt = async (req, res) => {
       },
     });
 
-    // Enhanced prompt with strict formatting
-    const prompt = `Generate exactly two lines:
-    Line 1 must start with "Title: " followed by a 2-5 word poster title
-    Line 2 must start with "Category: " followed by a 1-2 word category
+    // Generate title and category
+    const prompt = `Generate a poster template based on: "${description}".
+    Respond in this exact format:
+    Title: [Generated Title Here]
+    Category: [Generated Category Here]
     
-    Based on this description: "${req.body.description}"`;
+    Requirements:
+    - Title should be 2-5 words
+    - Category should be 1-2 words
+    - Both should be relevant to poster design`;
 
-    // Execute generation with timeout
-    const result = await Promise.race([
-      model.generateContent(prompt),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("AI timeout")), 10000)
-      ),
-    ]);
-
+    const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    // Robust response parsing
-    const [titleLine, categoryLine] = text.split("\n").filter((l) => l.trim());
-    const title = titleLine?.replace("Title:", "").trim() || "New Poster";
-    const category = categoryLine?.replace("Category:", "").trim() || "General";
+    // Parse response
+    const titleMatch = text.match(/Title:\s*(.+)/i);
+    const categoryMatch = text.match(/Category:\s*(.+)/i);
 
-    // Image handling with fallback
+    const title = titleMatch?.[1]?.trim() || "Custom Poster";
+    const category = categoryMatch?.[1]?.trim() || "General";
+
+    // Generate AI image
+    const imagePrompt = `Professional poster design about: ${description}. Minimalist style, high quality, suitable for printing`;
+    const imageBase64 = await generateAIImage(imagePrompt);
+
+    // Upload to Cloudinary
     let imageUrl;
     try {
-      if (cloudinary.config().cloud_name) {
-        const uploadResult = await cloudinary.uploader.upload(
-          `https://placehold.co/600x400?text=${encodeURIComponent(title)}`,
-          { folder: "poster-templates" }
-        );
-        imageUrl = uploadResult.secure_url;
-      } else {
-        imageUrl = `https://placehold.co/600x400?text=${encodeURIComponent(title)}`;
-      }
+      const uploadResult = await cloudinary.uploader.upload(
+        `data:image/png;base64,${imageBase64}`,
+        {
+          folder: "poster-templates",
+          resource_type: "image",
+        }
+      );
+      imageUrl = uploadResult.secure_url;
     } catch (uploadError) {
-      console.error("Image upload failed:", uploadError);
-      imageUrl = `https://placehold.co/600x400?text=${encodeURIComponent(title)}`;
+      console.error("Cloudinary upload failed:", uploadError);
+      throw new Error("Failed to upload generated image");
     }
 
     return res.json({
@@ -104,10 +122,9 @@ exports.generateTemplateFromPrompt = async (req, res) => {
     console.error("🚨 AI Generation Error:", error);
     return res.status(500).json({
       success: false,
-      error: "AI processing failed",
+      error: "AI generation failed",
       details:
         process.env.NODE_ENV === "development" ? error.message : undefined,
-      suggestion: "Please try again with a different description",
     });
   }
 };
