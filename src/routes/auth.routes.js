@@ -62,15 +62,19 @@ router.post(
       }
 
       // File paths
-      const documentFront = req.files?.documentFront?.[0]?.filename
-        ? `/uploads/kyc/${req.files.documentFront[0].filename}`
-        : null;
-      const documentBack = req.files?.documentBack?.[0]?.filename
-        ? `/uploads/kyc/${req.files.documentBack[0].filename}`
-        : null;
-      const selfie = req.files?.selfie?.[0]?.filename
-        ? `/uploads/kyc/${req.files.selfie[0].filename}`
-        : null;
+      // const documentFront = req.files?.documentFront?.[0]?.filename
+      //   ? `/uploads/kyc/${req.files.documentFront[0].filename}`
+      //   : null;
+      // const documentBack = req.files?.documentBack?.[0]?.filename
+      //   ? `/uploads/kyc/${req.files.documentBack[0].filename}`
+      //   : null;
+      // const selfie = req.files?.selfie?.[0]?.filename
+      //   ? `/uploads/kyc/${req.files.selfie[0].filename}`
+      //   : null;
+      // Extract Cloudinary URLs
+      const documentFront = req.files?.documentFront?.[0]?.path || null;
+      const documentBack = req.files?.documentBack?.[0]?.path || null;
+      const selfie = req.files?.selfie?.[0]?.path || null;
 
       // Determine KYC status
       const kycStatus = documentFront && selfie ? "pending" : "not_submitted";
