@@ -9,7 +9,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Initialize Gemini
+// Initialize Gemini with correct API version
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 exports.generateTemplateFromPrompt = async (req, res) => {
@@ -20,14 +20,24 @@ exports.generateTemplateFromPrompt = async (req, res) => {
       return res.status(400).json({ error: "Description is required" });
     }
 
-    // Initialize model
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // Initialize model with correct name
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.0-pro", // Updated model name
+      generationConfig: {
+        temperature: 0.9,
+        topP: 1,
+        topK: 32,
+        maxOutputTokens: 2048,
+      },
+    });
 
     // Generate title and category
     const prompt = `Generate a creative poster title and category based on: "${description}".
     Respond in this exact format:
     Title: [Generated Title Here]
-    Category: [Generated Category Here]`;
+    Category: [Generated Category Here]
+    
+    Make the title catchy and the category relevant to poster design.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -37,10 +47,9 @@ exports.generateTemplateFromPrompt = async (req, res) => {
     const title = text.match(/Title: (.*)/)?.[1]?.trim() || "Custom Poster";
     const category = text.match(/Category: (.*)/)?.[1]?.trim() || "General";
 
-    // For image generation - using placeholder since Gemini doesn't generate images
-    // In production, integrate Stable Diffusion or DALL-E here
+    // Generate placeholder image (since Gemini doesn't create images)
     const placeholderImage = await cloudinary.uploader.upload(
-      "https://placehold.co/600x400/EEE/31343C?font=montserrat&text=Poster+Image",
+      `https://placehold.co/600x400/EEE/31343C.png?text=${encodeURIComponent(title)}&font=montserrat`,
       { folder: "poster-templates" }
     );
 
@@ -56,6 +65,7 @@ exports.generateTemplateFromPrompt = async (req, res) => {
       success: false,
       error: "AI generation failed",
       details: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };

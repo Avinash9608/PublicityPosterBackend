@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { generateTemplateFromPrompt } = require("../controllers/aiController");
 
-// Removed auth middleware
+// No authentication required
 router.post("/generate-template", generateTemplateFromPrompt);
 
 module.exports = router;
