@@ -63,4 +63,54 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get all posters (for admin panel)
+router.get("/admin", async (req, res) => {
+  try {
+    const posters = await PosterPro.find().sort({ createdAt: -1 }).lean();
+
+    res.status(200).json({
+      success: true,
+      posters: posters.map((poster) => ({
+        ...poster,
+        createdAt: poster.createdAt.toISOString(),
+        updatedAt: poster.updatedAt.toISOString(),
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch posters",
+    });
+  }
+});
+
+// Delete poster
+router.delete("/:id", async (req, res) => {
+  try {
+    const poster = await PosterPro.findById(req.params.id);
+
+    if (!poster) {
+      return res.status(404).json({
+        success: false,
+        error: "Poster not found",
+      });
+    }
+
+    // Delete from Cloudinary first
+    await cloudinary.uploader.destroy(poster.cloudinaryPublicId);
+
+    // Then delete from database
+    await PosterPro.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: "Poster deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete poster",
+    });
+  }
+});
 module.exports = router;
