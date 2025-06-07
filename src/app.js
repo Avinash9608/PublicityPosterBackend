@@ -23,7 +23,6 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
   "https://poster-self.vercel.app",
-
   "https://poster-builder-pro-admin-panel.vercel.app",
   "https://publicity-poster-pro.vercel.app",
 ];
@@ -40,6 +39,7 @@ app.use(
       return callback(null, true);
     },
     credentials: true,
+    exposedHeaders: ["Content-Disposition"], // Add any custom headers you need
   })
 );
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
