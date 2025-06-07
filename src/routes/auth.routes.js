@@ -47,19 +47,19 @@ router.post(
         ],
       });
 
-      if (existingUser) {
-        // Cleanup uploaded files
-        Object.values(req.files || {})
-          .flat()
-          .forEach((file) => fs.unlinkSync(file.path));
-        return res.status(400).json({
-          success: false,
-          message:
-            existingUser.username === username
-              ? "Username already taken"
-              : "Email already registered",
-        });
-      }
+      // if (existingUser) {
+      //   // Cleanup uploaded files
+      //   Object.values(req.files || {})
+      //     .flat()
+      //     .forEach((file) => fs.unlinkSync(file.path));
+      //   return res.status(400).json({
+      //     success: false,
+      //     message:
+      //       existingUser.username === username
+      //         ? "Username already taken"
+      //         : "Email already registered",
+      //   });
+      // }
 
       // File paths
       // const documentFront = req.files?.documentFront?.[0]?.filename
@@ -72,6 +72,43 @@ router.post(
       //   ? `/uploads/kyc/${req.files.selfie[0].filename}`
       //   : null;
       // Extract Cloudinary URLs
+
+      // Replace the current error handling in your register route with this:
+
+      if (existingUser) {
+        // Cleanup uploaded files - Cloudinary version
+        try {
+          const filesToDelete = Object.values(req.files || {}).flat();
+          await Promise.all(
+            filesToDelete.map((file) => {
+              if (file.path && file.path.includes("cloudinary")) {
+                // Extract public_id from Cloudinary URL
+                const urlParts = file.path.split("/");
+                const publicId = urlParts
+                  .slice(urlParts.indexOf("upload") + 1)
+                  .join("/")
+                  .replace(/\..+$/, ""); // Remove file extension
+
+                // Use your Cloudinary SDK to delete the file
+                return cloudinary.uploader.destroy(publicId);
+              }
+              // For local files, use fs.unlinkSync
+              if (file.path) fs.unlinkSync(file.path);
+              return Promise.resolve();
+            })
+          );
+        } catch (cleanupErr) {
+          console.error("Cleanup error:", cleanupErr);
+        }
+
+        return res.status(400).json({
+          success: false,
+          message:
+            existingUser.username === username
+              ? "Username already taken"
+              : "Email already registered",
+        });
+      }
       const documentFront = req.files?.documentFront?.[0]?.path || null;
       const documentBack = req.files?.documentBack?.[0]?.path || null;
       const selfie = req.files?.selfie?.[0]?.path || null;

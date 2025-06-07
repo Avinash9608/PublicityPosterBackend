@@ -56,15 +56,22 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// const storage = new CloudinaryStorage({
+//   cloudinary,
+//   params: async (req, file) => ({
+//     folder: "kyc_uploads",
+//     public_id: `kyc-${Date.now()}`,
+//     allowed_formats: ["jpg", "jpeg", "png", "pdf"],
+//   }),
+// });
 const storage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => ({
+  cloudinary: cloudinary,
+  params: {
     folder: "kyc_uploads",
-    public_id: `kyc-${Date.now()}`,
     allowed_formats: ["jpg", "jpeg", "png", "pdf"],
-  }),
+    resource_type: "auto",
+  },
 });
-
 const upload = multer({ storage });
 
 module.exports = upload;
